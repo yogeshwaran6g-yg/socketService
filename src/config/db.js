@@ -8,6 +8,7 @@ const connPool = createPool({
     password : config.db.PASSWORD,
     database: config.db.DB_NAME,
     decimalNumbers: true, 
+    port: config.db.PORT,
     waitForConnections: true, 
     connectionLimit: 10,     
     queueLimit: 0 ,

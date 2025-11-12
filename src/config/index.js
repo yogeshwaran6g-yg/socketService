@@ -11,7 +11,8 @@ module.exports = {
             HOST : env,
             USERNAME : "root",
             PASSWORD : "",
-            DB_NAME  : "socketservice"
+            DB_NAME  : "socketservice",
+            PORT     :3306
         },
         
 
