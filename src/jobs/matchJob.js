@@ -199,7 +199,7 @@ async function startMatchScheduler() {
     const io = getIoInstance();
     const {matchUuid1,matchName1:matchName} = await createNewMatch();
     const roomId = matchUuid1; // each match has its own room
-    const startCountDown = 5; // seconds before start (bet countdown)
+    const startCountDown = 15; // seconds before start (bet countdown)
     const endTime = 1;  // 2 minites
     let countSendSetInterval = 1000;
 
