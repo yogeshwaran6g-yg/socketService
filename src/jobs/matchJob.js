@@ -1,0 +1,276 @@
+const {queryRunner} = require("../config/db");
+const { v4: uuidv4 } = require("uuid");
+const {getIO:getIoInstance} = require("../socket/socketController");
+const SocketService =require("../socket/socketService")
+
+
+async function createNewMatch() {
+  try {
+    //todo make all game match init
+
+  // 1.tiger and dragon match init
+    const matchUuid1 = uuidv4();
+    // const matchName1 = `DragonTiger ${new Date().toISOString().slice(11, 19)}`;
+    const matchName1 = `TigerDragon` 
+    // 1. create match
+    const sql = `
+      INSERT INTO matches (match_uuid, match_name, status, created_at)
+      VALUES (?, ?, 'pending', NOW())
+    `;
+    await queryRunner(sql, [matchUuid1, matchName1]);
+    
+    // 2. add clans     
+    // Random clans
+    // const clans = ["Tiger", "Dragon", "Tie"];
+    // const chosen = clans.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+    // for (const clan of chosen) {
+    //     await queryRunner(
+    //     `INSERT INTO match_clans (match_uuid, clan_name) VALUES (?, ?)`,
+    //     [matchUuid1, clan]
+    //     );
+    // }    
+
+    console.log(`🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`);
+    return {matchUuid1, matchName1};
+  } catch (error) {
+    console.log("error with creating match ",error.message);
+  }
+}
+
+/**
+ * ⚡ Start a match (sets status & start_time)
+ */
+
+
+async function startMatch(matchUuid) {
+  try {
+    const sql = `
+      UPDATE matches
+      SET status = 'ongoing', start_time = NOW()
+      WHERE match_uuid = ?
+    `;
+    await queryRunner(sql, [matchUuid]);
+    console.log(`✅ Match started: ${matchUuid}`);
+    
+  } catch (error) {
+    console.log("error on start match",error.message)
+  }
+}
+
+/**
+ * 🏁 End a match (sets status & end_time)
+ */
+
+// ! newlly added lowest winx return
+async function endMatch(matchUuid, matchName) {
+  try {
+    console.log(`🏁 Ending match: ${matchUuid} (${matchName})`);
+
+    const matchData = {
+      TigerDragon: {
+        clanData: {
+          clanNames: ["tiger", "dragon", "tie"],
+          tiger: { winx: "2" },
+          dragon: { winx: "2" },
+          tie: { winx: "9" },
+          lowestWinx: "tiger",
+          highestWinx: "tie",
+        },
+      },
+      TeenPati: {},
+    };
+
+    const matchConfig = matchData[matchName];
+    if (!matchConfig) {
+      console.log("❌ Match config not found");
+      return null;
+    }
+
+    const { clanData } = matchConfig;
+
+    // 1️⃣ Fetch total bets per clan
+    const rows = await queryRunner(
+      `SELECT clan_name, SUM(bet_amount) AS total
+       FROM bets
+       WHERE match_uuid = ?
+       GROUP BY clan_name`,
+      [matchUuid]
+    );
+
+    if (!rows.length) {
+      console.log("❌ No bets placed. No winner.");
+      await queryRunner(
+        `UPDATE matches SET status='completed', end_time=NOW() WHERE match_uuid=?`,
+        [matchUuid]
+      );
+      return null;
+    }
+
+    // Compute score = total × winx
+    const results = rows.map((r) => {
+      const clan = r.clan_name;
+      const total = Number(r.total);
+      const winx = Number(clanData[clan]?.winx || 0);
+      return { clan_name: clan, total, winx, score: total * winx };
+    });
+
+    console.log("📊 Results:", results);
+
+    // 3️⃣ Find the lowest score
+    const minScore = Math.min(...results.map((r) => r.score));
+    let potentialWinners = results.filter((r) => r.score === minScore);
+
+    // 4️⃣ If tie by score, choose those with lowest winx
+    if (potentialWinners.length > 1) {
+      const minWinx = Math.min(...potentialWinners.map((r) => r.winx));
+      potentialWinners = potentialWinners.filter((r) => r.winx === minWinx);
+    }
+
+    // 5️⃣ If all still tied (same score + same winx)
+    if (
+      potentialWinners.length > 1 &&
+      potentialWinners.every(
+        (w) => w.winx === potentialWinners[0].winx
+      )
+    ) {
+      console.log("⚖️ All clans completely tied. Eliminating highest winx clan.");
+
+      // Find the highest winx overall
+      const maxWinx = Math.max(...results.map((r) => r.winx));
+
+      // Remove the highest winx clan(s)
+      const remainingClans = results.filter((r) => r.winx !== maxWinx);
+
+      if (remainingClans.length > 0) {
+        const minRemainingWinx = Math.min(...remainingClans.map((r) => r.winx));
+        const finalCandidates = remainingClans.filter(
+          (r) => r.winx === minRemainingWinx
+        );
+
+        // Random pick from lowest remaining winx clans
+        const randomIndex = Math.floor(Math.random() * finalCandidates.length);
+        potentialWinners = [finalCandidates[randomIndex]];
+
+        console.log(
+          `🎯 All tied → eliminated highest winx (${maxWinx}) → selected from remaining lowest winx: ${potentialWinners[0].clan_name}`
+        );
+      }
+    }
+
+    // 6️⃣ Final winner (if still tie, random fallback)
+    let winnerClan;
+    if (potentialWinners.length > 1) {
+      const randomIndex = Math.floor(Math.random() * potentialWinners.length);
+      winnerClan = potentialWinners[randomIndex].clan_name;
+      console.log(`🎲 Random pick among remaining: ${winnerClan}`);
+    } else {
+      winnerClan = potentialWinners[0].clan_name;
+      console.log(`🏆 Final Winner: ${winnerClan}`);
+    }
+
+    // 7️⃣ Update DB
+    await queryRunner(
+      `UPDATE matches
+       SET status='completed', end_time=NOW(), winner_clan=?
+       WHERE match_uuid=?`,
+      [winnerClan, matchUuid]
+    );
+
+    console.log(`✅ Match ${matchUuid} completed. Winner: ${winnerClan}`);
+    const io = getIoInstance();
+    await SocketService.emitLast10History(io, matchName);
+    return winnerClan;
+  } catch (err) {
+    console.error("❌ Error in endMatch:", err.message);
+    return null;
+  }
+}
+
+/**
+ * 🔁 Job function that runs when app starts
+ * Creates → starts → ends a match (demo flow)
+ */
+async function startMatchScheduler() {
+  console.log("🕒 Match scheduler started...");
+
+  // Helper to create a match and manage its lifecycle
+  async function runSingleMatchCycle() {
+    const io = getIoInstance();
+    const {matchUuid1,matchName1:matchName} = await createNewMatch();
+    const roomId = matchUuid1; // each match has its own room
+    const startCountDown = 5; // seconds before start (bet countdown)
+    const endTime = 1;  // 2 minites
+    let countSendSetInterval = 1000;
+
+    let remaining = startCountDown;
+
+    // 🔹 Emit initial countdown started
+    io.to(roomId).emit('MatchTimerStart', {
+      matchUuid1,
+      countdown: startCountDown,
+      status: 'countdown_started'
+    });
+
+    // 🔹 Countdown timer that emits every second
+    const countdownInterval = setInterval(() => {
+      io.to("TigerDragon").emit('matchTimerTick', {
+        matchUuid1,
+        remaining
+      });
+
+      
+      remaining--;
+
+      if (remaining < 0) {
+        clearInterval(countdownInterval);
+
+        // 🕹️ Start the match after countdown ends
+        startMatch(matchUuid1)
+        .then(async () => {
+          io.to("TigerDragon").emit('matchStatus', {
+            matchUuid1,
+            status: 'started',
+            message: 'Match has started!'
+          });
+
+          // ⏰ End the match after 2 minutes
+          setTimeout(async () => {
+            const winClan = await endMatch(matchUuid1, matchName);
+            io.to("TigerDragon").emit('matchStatus', {
+              matchUuid1,
+              status: 'ended',
+              winner: winClan,
+              message: 'Match has ended!'
+            });
+          }, endTime * 60 * 1000); // 2 minutes
+        });
+      }
+    }, countSendSetInterval); // emits every second
+  }
+
+
+  // Run one immediately, then every 5 minutes (example)
+  await runSingleMatchCycle();
+
+  setInterval(async () => {
+    await runSingleMatchCycle();
+  }, 3 * 60 * 1000); // every 5 minutes
+}
+
+
+
+
+module.exports = {
+  startMatchScheduler,
+  createNewMatch,
+  startMatch,
+  endMatch,
+};
+
+
+
+
+
+
+
