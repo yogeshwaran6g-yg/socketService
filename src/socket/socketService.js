@@ -41,6 +41,16 @@ module.exports = socketService = {
 
   try {
     // 💰 1️⃣ Insert bet record
+
+    // Check match status before accepting bets
+    const matchStatus = await queryRunner(
+      `SELECT status FROM matches WHERE match_uuid = ?`,
+      [match_uuid]
+    );
+
+    if (!matchStatus.length || matchStatus[0].status !== 'pending') {
+      return socket.emit("error", { message: "Bets can only be placed on pending matches." });
+    }
     await queryRunner(
       `INSERT INTO bets (match_uuid, player_id, username, clan_name, bet_amount)
        VALUES (?, ?, ?, ?, ?)`,
@@ -123,6 +133,9 @@ module.exports = socketService = {
 
     console.log(`📜 Emitted last 10 wins for ${roomName}`);
   } catch (err) {
+    io.to(roomName).emit("error", {
+      message: "Failed to fetch last 10 history.",
+    });
     console.error("❌ Error fetching last 10 history:", err.message);
   }
   },

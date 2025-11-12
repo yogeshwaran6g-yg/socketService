@@ -193,22 +193,24 @@ async function endMatch(matchUuid, matchName) {
  */
 async function startMatchScheduler() {
   console.log("🕒 Match scheduler started...");
+  let matchCycleBetweenMatchesTimeInMinute = 2; // time between matches
 
   // Helper to create a match and manage its lifecycle
   async function runSingleMatchCycle() {
     const io = getIoInstance();
     const {matchUuid1,matchName1:matchName} = await createNewMatch();
     const roomId = matchUuid1; // each match has its own room
-    const startCountDown = 15; // seconds before start (bet countdown)
-    const endTime = 1;  // 2 minites
-    let countSendSetInterval = 1000;
+    const startCountDownSeconds = 15; // seconds before start (bet countdown)
+    const endTimeInMinute = 1;  // 2 minites
+    let countDownSendSetIntervalInSeconds = 1000;
+    // !added it based on match endtime
 
-    let remaining = startCountDown;
+    let remaining = startCountDownSeconds;
 
     // 🔹 Emit initial countdown started
-    io.to(roomId).emit('MatchTimerStart', {
+    io.to(roomId).emit('matchTimerStart', {
       matchUuid1,
-      countdown: startCountDown,
+      countdown: startCountDownSeconds,
       status: 'countdown_started'
     });
 
@@ -243,10 +245,10 @@ async function startMatchScheduler() {
               winner: winClan,
               message: 'Match has ended!'
             });
-          }, endTime * 60 * 1000); // 2 minutes
+          }, endTimeInMinute * 60 * 1000); // 2 minutes
         });
       }
-    }, countSendSetInterval); // emits every second
+    }, countDownSendSetIntervalInSeconds); // emits every second
   }
 
 
@@ -255,7 +257,7 @@ async function startMatchScheduler() {
 
   setInterval(async () => {
     await runSingleMatchCycle();
-  }, 3 * 60 * 1000); // every 5 minutes
+  }, matchCycleBetweenMatchesTimeInMinute * 60 *1000); // every 5 minit
 }
 
 

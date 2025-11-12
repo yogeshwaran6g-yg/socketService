@@ -11,11 +11,17 @@ socket.on("connect", () => {
   socket.emit("joinRoom", { roomName: "TigerDragon", playerId: 1, "username": "PlayerOne"});
 
   socket.emit("placeBet", { match_uuid: "207bd14c-a170-4115-9906-b3638f05dfee", player_id: 1, username: "PlayerOne", clan_name: "Tiger", bet_amount: 100 });
+
+  
 });
 
 socket.onAny((event, data) => {
   console.log("📨 Server event:", event, data);
 });
+
+
+
+
 
 
 //  playerId, username, roomName
