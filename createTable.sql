@@ -1,0 +1,35 @@
+
+CREATE TABLE matches (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  match_uuid VARCHAR(64) UNIQUE NOT NULL,
+  match_name VARCHAR(255),
+  status ENUM('pending', 'ongoing', 'completed', 'cancelled') DEFAULT 'pending',
+  winner_clan VARCHAR(100) DEFAULT NULL,
+  start_time DATETIME DEFAULT NULL,
+  end_time DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+
+
+
+CREATE TABLE match_clans (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  match_uuid VARCHAR(64) NOT NULL,
+  clan_name VARCHAR(100) NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_uuid) REFERENCES matches(match_uuid) ON DELETE CASCADE
+);
+
+
+CREATE TABLE bets (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  match_uuid VARCHAR(64) NOT NULL,
+  player_id BIGINT NOT NULL,
+  username VARCHAR(255) NOT NULL,
+  clan_name VARCHAR(100) NOT NULL,
+  bet_amount DECIMAL(10,2) DEFAULT 0.00,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_uuid) REFERENCES matches(match_uuid) ON DELETE CASCADE
+);
