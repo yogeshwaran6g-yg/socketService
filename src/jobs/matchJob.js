@@ -1,25 +1,25 @@
-const {queryRunner} = require("../config/db");
+const { queryRunner } = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
-const {getIO:getIoInstance} = require("../socket/socketController");
-const SocketService =require("../socket/socketService")
-
+const { getIO: getIoInstance } = require("../socket/socketController");
+const SocketService = require("../socket/socketService");
+require("dotenv").config();
 
 async function createNewMatch() {
   try {
     //todo make all game match init
 
-  // 1.tiger and dragon match init
+    // 1.tiger and dragon match init
     const matchUuid1 = uuidv4();
     // const matchName1 = `DragonTiger ${new Date().toISOString().slice(11, 19)}`;
-    const matchName1 = `TigerDragon` 
+    const matchName1 = `TigerDragon`;
     // 1. create match
     const sql = `
       INSERT INTO matches (match_uuid, match_name, status, created_at)
       VALUES (?, ?, 'pending', NOW())
     `;
     await queryRunner(sql, [matchUuid1, matchName1]);
-    
-    // 2. add clans     
+
+    // 2. add clans
     // Random clans
     // const clans = ["Tiger", "Dragon", "Tie"];
     // const chosen = clans.sort(() => 0.5 - Math.random()).slice(0, 2);
@@ -29,19 +29,20 @@ async function createNewMatch() {
     //     `INSERT INTO match_clans (match_uuid, clan_name) VALUES (?, ?)`,
     //     [matchUuid1, clan]
     //     );
-    // }    
+    // }
 
-    console.log(`🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`);
-    return {matchUuid1, matchName1};
+    console.log(
+      `🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`
+    );
+    return { matchUuid1, matchName1 };
   } catch (error) {
-    console.log("error with creating match ",error.message);
+    console.log("error with creating match ", error.message);
   }
 }
 
 /**
  * ⚡ Start a match (sets status & start_time)
- */
-
+ **/
 
 async function startMatch(matchUuid) {
   try {
@@ -52,16 +53,15 @@ async function startMatch(matchUuid) {
     `;
     await queryRunner(sql, [matchUuid]);
     console.log(`✅ Match started: ${matchUuid}`);
-    
   } catch (error) {
-    console.log("error on start match",error.message)
+    console.log("error on start match", error.message);
   }
 }
 
 /**
  * 🏁 End a match (sets status & end_time)
- */
-
+ **/
+ 
 // ! newlly added lowest winx return
 async function endMatch(matchUuid, matchName) {
   try {
@@ -97,14 +97,25 @@ async function endMatch(matchUuid, matchName) {
        GROUP BY clan_name`,
       [matchUuid]
     );
-
     if (!rows.length) {
-      console.log("❌ No bets placed. No winner.");
+      console.log("❌ No bets placed. Selecting random winner...");
+
+      const clans = clanData.clanNames; // ["tiger", "dragon", "tie"]
+      const winnerClan = clans[Math.floor(Math.random() * clans.length)];
+
+      console.log(`🎯 Random winner selected: ${winnerClan}`);
+
       await queryRunner(
-        `UPDATE matches SET status='completed', end_time=NOW() WHERE match_uuid=?`,
-        [matchUuid]
+        `UPDATE matches
+     SET status='completed', end_time=NOW(), winner_clan=?
+     WHERE match_uuid=?`,
+        [winnerClan, matchUuid]
       );
-      return null;
+
+      const io = getIoInstance();
+      await SocketService.emitLast10History(io, matchName);
+
+      return winnerClan;
     }
 
     // Compute score = total × winx
@@ -130,11 +141,11 @@ async function endMatch(matchUuid, matchName) {
     // 5️⃣ If all still tied (same score + same winx)
     if (
       potentialWinners.length > 1 &&
-      potentialWinners.every(
-        (w) => w.winx === potentialWinners[0].winx
-      )
+      potentialWinners.every((w) => w.winx === potentialWinners[0].winx)
     ) {
-      console.log("⚖️ All clans completely tied. Eliminating highest winx clan.");
+      console.log(
+        "⚖️ All clans completely tied. Eliminating highest winx clan."
+      );
 
       // Find the highest winx overall
       const maxWinx = Math.max(...results.map((r) => r.winx));
@@ -187,81 +198,116 @@ async function endMatch(matchUuid, matchName) {
   }
 }
 
-/**
- * 🔁 Job function that runs when app starts
- * Creates → starts → ends a match (demo flow)
- */
-async function startMatchScheduler() {
-  console.log("🕒 Match scheduler started...");
-  let matchCycleBetweenMatchesTimeInMinute = 2; // time between matches
 
-  // Helper to create a match and manage its lifecycle
-  async function runSingleMatchCycle() {
-    const io = getIoInstance();
-    const {matchUuid1,matchName1:matchName} = await createNewMatch();
-    const roomId = matchUuid1; // each match has its own room
-    const startCountDownSeconds = 15; // seconds before start (bet countdown)
-    const endTimeInMinute = 1;  // 2 minites
-    let countDownSendSetIntervalInSeconds = 1000;
-    // !added it based on match endtime
 
-    let remaining = startCountDownSeconds;
+async function runSingleMatchCycle() {
+  const io = getIoInstance();
 
-    // 🔹 Emit initial countdown started
-    io.to(roomId).emit('matchTimerStart', {
+  return new Promise(async (resolve) => {
+    // 🆕 Start a new match
+    const { matchUuid1, matchName1: matchName } = await createNewMatch();
+    await startMatch(matchUuid1);
+    const roomId = matchUuid1;
+
+    // ENV configs
+    const FULL_MATCH_TIME = Number(process.env.MATCH_FULL_TIME || 60); 
+    const BET_COUNTDOWN = Number(process.env.MATCH_BET_COUNTDOWN || 40); 
+    const TICK_INTERVAL = Number(process.env.COUNTDOWN_INTERVAL || 1000);
+
+    if (!FULL_MATCH_TIME || !BET_COUNTDOWN)
+      throw new Error("MATCH_FULL_TIME or MATCH_BET_COUNTDOWN missing");
+
+    let remaining = FULL_MATCH_TIME;
+    let betRemaining = BET_COUNTDOWN;
+
+    let winnerClan = null;
+    let winnerCalculated = false;
+
+    // 🔵 Announce match start
+    io.to("TigerDragon").emit("matchStatus", {
       matchUuid1,
-      countdown: startCountDownSeconds,
-      status: 'countdown_started'
+      status: "match_started",
+      fullTime: FULL_MATCH_TIME,
+      betTime: BET_COUNTDOWN,
     });
 
-    // 🔹 Countdown timer that emits every second
-    const countdownInterval = setInterval(() => {
-      io.to("TigerDragon").emit('matchTimerTick', {
+    // 🔥 MAIN MATCH TIMER
+    const interval = setInterval(async () => {
+      // Emit full timer tick
+      io.to("TigerDragon").emit("matchTimerTick", {
         matchUuid1,
-        remaining
+        remaining,
+        betRemaining: betRemaining > 0 ? betRemaining : 0,
       });
 
-      
-      remaining--;
+      // ----------------------------------
+      // 🟡 BET COUNTDOWN
+      // ----------------------------------
+      if (betRemaining > 0) {
+        betRemaining--;
 
-      if (remaining < 0) {
-        clearInterval(countdownInterval);
-
-        // 🕹️ Start the match after countdown ends
-        startMatch(matchUuid1)
-        .then(async () => {
-          io.to("TigerDragon").emit('matchStatus', {
+        if (betRemaining === 0) {
+          io.to("TigerDragon").emit("matchStatus", {
             matchUuid1,
-            status: 'started',
-            message: 'Match has started!'
+            status: "bet_closed",
           });
 
-          // ⏰ End the match after 2 minutes
-          setTimeout(async () => {
-            const winClan = await endMatch(matchUuid1, matchName);
-            io.to("TigerDragon").emit('matchStatus', {
-              matchUuid1,
-              status: 'ended',
-              winner: winClan,
-              message: 'Match has ended!'
-            });
-          }, endTimeInMinute * 60 * 1000); // 2 minutes
-        });
+          io.to("TigerDragon").emit("matchStatus", {
+            matchUuid1,
+            status: "calculating",
+          });
+
+          
+        }
       }
-    }, countDownSendSetIntervalInSeconds); // emits every second
-  }
 
+      // ----------------------------------
+      // 🔴 MATCH ENDS
+      // ----------------------------------
+      // Calculate winner ONCE
+      if(remaining ===10){
+        winnerClan = await endMatch(matchUuid1, matchName);
+        winnerCalculated = true;
+      }
+      
+      if (remaining <= 0) {
+        clearInterval(interval);
 
-  // Run one immediately, then every 5 minutes (example)
-  await runSingleMatchCycle();
+        io.to("TigerDragon").emit("matchStatus", {
+          matchUuid1,
+          status: "ended",
+          winner: winnerClan,
+        });
 
-  setInterval(async () => {
-    await runSingleMatchCycle();
-  }, matchCycleBetweenMatchesTimeInMinute * 60 *1000); // every 5 minit
+        return resolve(winnerClan); // <-- FIXED
+      }
+
+      remaining--;
+    }, TICK_INTERVAL);
+  });
 }
 
 
+/**
+ * 🔁 Job function that runs when app starts
+ * Creates → starts → ends a match (demo flow)
+ **/
 
+async function startMatchScheduler() {
+  console.log("🕒 Match scheduler started...");
+
+  const GAP_BETWEEN_MATCHES = Number(process.env.MATCH_GAP || 5); // seconds
+
+  async function loop() {
+    console.log("🚀 Starting new match cycle...");
+    await runSingleMatchCycle();  // wait fully
+    console.log("🏁 Match finished. Waiting for next cycle...");
+    await new Promise(res => setTimeout(res, GAP_BETWEEN_MATCHES * 1000));
+    loop(); // repeat
+  }
+
+  loop();
+}
 
 module.exports = {
   startMatchScheduler,
@@ -269,10 +315,3 @@ module.exports = {
   startMatch,
   endMatch,
 };
-
-
-
-
-
-
-
