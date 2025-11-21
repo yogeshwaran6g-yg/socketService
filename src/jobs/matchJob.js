@@ -37,7 +37,7 @@ async function createNewMatch() {
     );
 
     // Initialize in-memory store
-    MatchStore.initMatch(matchUuid1, matchName1, ["tiger", "dragon", "tie"]);
+    MatchStore.initMatch(matchUuid1, matchName1, ["Tiger", "Dragon", "Tie"]);
 
     return { matchUuid1, matchName1 };
   } catch (error) {
@@ -195,9 +195,6 @@ async function endMatch(matchUuid, matchName) {
 
     console.log(`✅ Match ${matchUuid} completed. Winner: ${winnerClan}`);
     
-    // Cleanup memory
-    MatchStore.removeMatch(matchUuid);
-
     const io = getIoInstance();
     await SocketService.emitLast10History(io, matchName);
     return winnerClan;
@@ -215,12 +212,29 @@ async function runSingleMatchCycle() {
     const { matchUuid1, matchName1: matchName } = await createNewMatch();
     await startMatch(matchUuid1);
     const roomId = matchUuid1;
+    
+    //dummy data init
+      if(
+        process.env.INTERVALMS &&
+        process.env.MINBETINCREASE &&
+        process.env.MAXBETINCREASE &&
+        process.env.MINCOUNTINCREASE &&
+        process.env.MAXCOUNTINCREASE
+      ){   
+        MatchStore.startDummySimulation(
+          process.env.INTERVALMS,
+          process.env.MINBETINCREASE,
+          process.env.MAXBETINCREASE,
+          process.env.MINCOUNTINCREASE,
+          process.env.MAXCOUNTINCREASE,
+        )
+      }
 
     // ENV configs
     const FULL_MATCH_TIME = Number(process.env.MATCH_FULL_TIME || 60); 
     const BET_COUNTDOWN = Number(process.env.MATCH_BET_COUNTDOWN || 40); 
     const TICK_INTERVAL = Number(process.env.COUNTDOWN_INTERVAL || 1000);
-
+    
     if (!FULL_MATCH_TIME || !BET_COUNTDOWN)
       throw new Error("MATCH_FULL_TIME or MATCH_BET_COUNTDOWN missing");
 
@@ -286,6 +300,7 @@ async function runSingleMatchCycle() {
       if(remaining ===10){
         winnerClan = await endMatch(matchUuid1, matchName);
         winnerCalculated = true;
+        MatchStore.stopDummySimulation();
       }
       
       if (remaining <= 0) {
@@ -296,6 +311,12 @@ async function runSingleMatchCycle() {
           status: "ended",
           winner: winnerClan,
         });
+        
+        //clear dummy data
+        // Cleanup memory
+        MatchStore.removeMatch(matchUuid1);
+
+        
 
         return resolve(winnerClan); // <-- FIXED
       }

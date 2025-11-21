@@ -67,8 +67,10 @@ module.exports = socketService = {
       });
 
       // 📊 3️⃣ Update In-Memory Store
-      MatchStore.addBet(match_uuid, player_id, username, clan_name, bet_amount, false)
-
+      const matchStoreResult = MatchStore.addBet(match_uuid, player_id, username, clan_name, bet_amount, false)
+      if(!matchStoreResult){
+        throw new Error('Internal error')
+      }
       //get player total
       const playerTotalBet = MatchStore.getPlayerTotalBet(match_uuid, player_id);
 
@@ -84,7 +86,7 @@ module.exports = socketService = {
       
     } catch (err) {
       console.error(err);
-      socket.emit("error", { message: "Failed to place bet" });
+      socket.emit("error", { message: err.message || "Failed to place bet" });
     }
   },
 

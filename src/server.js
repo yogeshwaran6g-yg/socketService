@@ -8,7 +8,7 @@ const { initSocket } = require("./socket/socketController");
 //middlewares
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errHandler");
-const {startDummySimulation} = require("./socket/matchStore")
+const matchStore = require("./socket/matchStore")
 require("dotenv").config();
 //job
 const {startMatchScheduler}=require("./jobs/matchJob")
@@ -40,21 +40,6 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 initSocket(server);
 startMatchScheduler();
-  if(
-    process.env.INTERVALMS &&
-    process.env.MINBETINCREASE &&
-    process.env.MAXBETINCREASE &&
-    process.env.MINCOUNTINCREASE &&
-    process.env.MAXCOUNTINCREASE
-  ){   
-    startDummySimulation(
-      process.env.INTERVALMS,
-      process.env.MINBETINCREASE,
-      process.env.MAXBETINCREASE,
-      process.env.MINCOUNTINCREASE,
-      process.env.MAXCOUNTINCREASE,
-    )
-  }
 
 // Start server
 server.listen(PORT, () => {

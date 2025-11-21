@@ -1,6 +1,7 @@
 class MatchStore {
   constructor() {
     this.matches = {};
+    this.dummyInterval = null;
   }
 
   /**
@@ -152,7 +153,10 @@ class MatchStore {
     const match = this.matches[matchUuid];
     if (!match) return null;
 
-    return match.users.real[userId].totalBet;
+    if(match.users.real[userId] && match.users.real[userId].totalBet){
+        return match.users.real[userId].totalBet
+    }
+    throw new Error("failed to get bet data"); 
   }
 
 
@@ -177,7 +181,7 @@ class MatchStore {
    * @param {number} maxCountIncrease - Maximum amount to increase total dummy user count.
    */
   startDummySimulation(intervalMs, minBetIncrease, maxBetIncrease, minCountIncrease, maxCountIncrease) {
-    if (this.dummyInterval) {
+    if (this.dummyInterval!==null) {
       clearInterval(this.dummyInterval);
       console.log('🔄 MatchStore: Restarting dummy simulation interval.');
     }
@@ -186,17 +190,15 @@ class MatchStore {
       for (const matchUuid in this.matches) {
         const match = this.matches[matchUuid];
         if (!match) continue;
-
+                
+    const randomCountIncrease = Math.random() * (maxCountIncrease - minCountIncrease + 1) + minCountIncrease;
         
-        
-        const randomCountIncrease = Math.floor(Math.random() * (maxCountIncrease - minCountIncrease + 1)) + minCountIncrease;
-        
-        for (const clanName in match.clans) {
-          const randomClanBetIncrease = Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1)) + minBetIncrease;
-          match.clans[clanName].dummyTotal += randomClanBetIncrease;
-        }
-        match.users.dummy.totalCount += randomCountIncrease;
-
+    for (const clanName in match.clans) {
+        const randomClanBetIncrease = Math.random() * (maxBetIncrease - minBetIncrease) + minBetIncrease;
+        match.clans[clanName].dummyTotal = randomClanBetIncrease;
+    }
+        match.users.dummy.totalCount = randomCountIncrease;
+        console.log("updated the dummy data from dummy simulation ", match .clans, match.users.dummy.totalCount)
 
       }
     }, intervalMs);
