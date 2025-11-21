@@ -191,14 +191,14 @@ class MatchStore {
         const match = this.matches[matchUuid];
         if (!match) continue;
                 
-    const randomCountIncrease = Math.random() * (maxCountIncrease - minCountIncrease + 1) + minCountIncrease;
-        
+    const randomCountIncrease = Math.abs(Math.round((Math.random() * maxCountIncrease - minCountIncrease )))+ minCountIncrease ;
+    
     for (const clanName in match.clans) {
-        const randomClanBetIncrease = Math.random() * (maxBetIncrease - minBetIncrease) + minBetIncrease;
+        const randomClanBetIncrease = Math.abs(Math.round((Math.random() * maxBetIncrease - minBetIncrease )))+ minBetIncrease ;
         match.clans[clanName].dummyTotal = randomClanBetIncrease;
     }
         match.users.dummy.totalCount = randomCountIncrease;
-        console.log("updated the dummy data from dummy simulation ", match .clans, match.users.dummy.totalCount)
+        //console.log("updated the dummy data from dummy simulation ", match .clans, match.users.dummy.totalCount)
 
       }
     }, intervalMs);
