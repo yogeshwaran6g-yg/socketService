@@ -1,0 +1,19 @@
+//
+NODE_ENV= 
+PORT=
+
+// to run matc cycle 
+MATCH_FULL_TIME=
+MATCH_BET_COUNTDOWN=
+COUNTDOWN_INTERVAL=
+MATCH_GAP=
+
+
+// to create random dummy users count and bet amount
+INTERVALMS =  //in ms 
+MINBETINCREASE =
+MAXBETINCREASE =
+MINCOUNTINCREASE =
+MAXCOUNTINCREASE 
+
+ 
