@@ -23,6 +23,8 @@ CREATE TABLE match_clans (
 );
 
 
+
+
 CREATE TABLE bets (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   match_uuid VARCHAR(64) NOT NULL,

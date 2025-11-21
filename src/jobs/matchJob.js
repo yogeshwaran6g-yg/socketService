@@ -2,6 +2,7 @@ const { queryRunner } = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 const { getIO: getIoInstance } = require("../socket/socketController");
 const SocketService = require("../socket/socketService");
+const MatchStore = require("../socket/matchStore");
 require("dotenv").config();
 
 async function createNewMatch() {
@@ -34,6 +35,10 @@ async function createNewMatch() {
     console.log(
       `🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`
     );
+
+    // Initialize in-memory store
+    MatchStore.initMatch(matchUuid1, matchName1, ["tiger", "dragon", "tie"]);
+
     return { matchUuid1, matchName1 };
   } catch (error) {
     console.log("error with creating match ", error.message);
@@ -189,6 +194,10 @@ async function endMatch(matchUuid, matchName) {
     );
 
     console.log(`✅ Match ${matchUuid} completed. Winner: ${winnerClan}`);
+    
+    // Cleanup memory
+    MatchStore.removeMatch(matchUuid);
+
     const io = getIoInstance();
     await SocketService.emitLast10History(io, matchName);
     return winnerClan;
@@ -197,8 +206,6 @@ async function endMatch(matchUuid, matchName) {
     return null;
   }
 }
-
-
 
 async function runSingleMatchCycle() {
   const io = getIoInstance();
@@ -234,10 +241,21 @@ async function runSingleMatchCycle() {
     // 🔥 MAIN MATCH TIMER
     const interval = setInterval(async () => {
       // Emit full timer tick
+      const currentTotals = MatchStore.getMatchTotals(matchUuid1) || {
+        real: { tiger: 0, dragon: 0, tie: 0 },
+        dummy: { tiger: 0, dragon: 0, tie: 0 },
+      };
+      const usersCount = MatchStore.getUsersCount(matchUuid1);
+
       io.to("TigerDragon").emit("matchTimerTick", {
         matchUuid1,
         remaining,
         betRemaining: betRemaining > 0 ? betRemaining : 0,
+        totalBet: {
+          real: currentTotals.real,
+          dummy: currentTotals.dummy,
+        },
+        usersCount,
       });
 
       // ----------------------------------

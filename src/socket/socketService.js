@@ -1,4 +1,5 @@
 const { queryRunner } = require("../config/db");
+const MatchStore = require("./matchStore");
 
 module.exports = socketService = {
   joinRoom: async function (socket, io, { playerId, username, roomName }) {
@@ -46,7 +47,7 @@ module.exports = socketService = {
         [match_uuid]
       );
 
-      if (!matchStatus.length || matchStatus[0].status !== "pending") {
+      if (!matchStatus.length || matchStatus[0].status !== "ongoing") {
         return socket.emit("error", {
           message: "Bets can only be placed on pending matches.",
         });
@@ -60,34 +61,27 @@ module.exports = socketService = {
       console.log(`💰 ${username} bet ${bet_amount} on ${clan_name}`);
 
       // ✅ 2️⃣ Acknowledge bet placed to this socket
-      io.to("TigerDragon").emit("betPlaced", {
+      socket.emit("betPlaced", {
         success: true,
         message: `You bet ${bet_amount} on ${clan_name}`,
       });
 
-      // 📊 3️⃣ Calculate total bet per clan for this match
-      const totalBets = await queryRunner(
-        `SELECT clan_name, SUM(bet_amount) AS total_amount 
-       FROM bets 
-       WHERE match_uuid = ? 
-       and player_id = ?
-       GROUP BY clan_name`,
-        [player_id, match_uuid]
-      );
+      // 📊 3️⃣ Update In-Memory Store
+      MatchStore.addBet(match_uuid, player_id, username, clan_name, bet_amount, false)
 
-      // 🧠 Transform into a clean object
-      const betSummary = {};
-      totalBets.forEach((row) => {
-        betSummary[row.clan_name] = row.total_amount;
-      });
+      //get player total
+      const playerTotalBet = MatchStore.getPlayerTotalBet(match_uuid, player_id);
 
-      // 🚀 4️⃣ Emit total bet summary to everyone in that match room
-      io.to("TigerDragon").emit("PlayerTotalBetUpdate", {
-        match_uuid,
-        totals: betSummary,
-      });
+      if (playerTotalBet !== undefined) {
+        socket.emit("PlayerTotalBetUpdate", {
+          match_uuid,
+          player_id,
+          totalBet: playerTotalBet,
+        });
 
-      console.log(`📢 Updated total bets for ${match_uuid}:`, betSummary);
+        console.log(`📢 Updated total bet for player ${username} in ${match_uuid}: ${playerTotalBet}`);
+      }
+      
     } catch (err) {
       console.error(err);
       socket.emit("error", { message: "Failed to place bet" });
