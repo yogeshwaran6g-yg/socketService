@@ -43,8 +43,7 @@ class MatchStore {
             // }
         },
         dummy: {
-
-          totalCount: 400,
+            totalCount: Math.floor(Math.random() * (600 - 500 + 1)) + 500,
         },
       },
     };

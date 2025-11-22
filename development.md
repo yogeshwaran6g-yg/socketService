@@ -65,3 +65,7 @@ emit and store winner
 
 
 
+add dummy data in tick not condition(done)
+and in the fist return ,make the return data of dummy
+winneer emit in tick    (done ) {iitial not calculated the   winner clan }
+make dummy user data drop slighlly (done)  (initial 500 to 600 then increase by 1 to 6)

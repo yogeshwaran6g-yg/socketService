@@ -241,16 +241,16 @@ async function runSingleMatchCycle() {
     let remaining = FULL_MATCH_TIME;
     let betRemaining = BET_COUNTDOWN;
 
-    let winnerClan = null;
+    let winnerClan = "Not calculated";
     let winnerCalculated = false;
 
     // 🔵 Announce match start
-    io.to("TigerDragon").emit("matchStatus", {
-      matchUuid1,
-      status: "match_started",
-      fullTime: FULL_MATCH_TIME,
-      betTime: BET_COUNTDOWN,
-    });
+    // io.to("TigerDragon").emit("matchStatus", {
+    //   matchUuid1,
+    //   status: "match_started",
+    //   fullTime: FULL_MATCH_TIME,
+    //   betTime: BET_COUNTDOWN,
+    // });
 
     // 🔥 MAIN MATCH TIMER
     const interval = setInterval(async () => {
@@ -263,28 +263,29 @@ async function runSingleMatchCycle() {
 
       io.to("TigerDragon").emit("matchTimerTick", {
         matchUuid1,
+        winner: winnerClan,
         matchRemainingTime : remaining,
         status:
           remaining <= 0
             ? "MATCH_ENDED"
-            : remaining === FULL_MATCH_TIME
+            : remaining === FULL_MATCH_TIME 
             ? "MATCH_STARTED"
             : betRemaining > 0
             ? "BET_OPEN"
             : "BET_CLOSED",
-        betRemainingTime: betRemaining > 0 ? betRemaining : 0,
-        // totalBet: {
-        //   real: currentTotals.real,
-        //   dummy: (remaining === FULL_MATCH_TIME || remaining <= 2) ? currentTotals.dummy : { tiger: 0, dragon: 0, tie: 0 },
-        // },
+        betRemainingTime: betRemaining > 0 ? betRemaining : 0,      
+        
+        
         totalBet :
-          (remaining === FULL_MATCH_TIME || remaining <= 2)?
+          (remaining === FULL_MATCH_TIME || remaining === 59 || remaining === 1) ?
              {                  
               real: currentTotals.real,
-              dummy: currentTotals.dummy
+              dummy: currentTotals.dummy,
+              // endDummy:
              }
-             :{
+             :{              
                real: currentTotals.real,
+               dummy: { tiger: 0, dragon: 0, tie: 0 },
               //  dummy: { tiger: 0, dragon: 0, tie: 0 }
              },
         usersCount,
