@@ -222,11 +222,11 @@ async function runSingleMatchCycle() {
         process.env.MAXCOUNTINCREASE
       ){   
         MatchStore.startDummySimulation(
-          process.env.INTERVALMS,
-          process.env.MINBETINCREASE,
-          process.env.MAXBETINCREASE,
-          process.env.MINCOUNTINCREASE,
-          process.env.MAXCOUNTINCREASE,
+            Number(process.env.INTERVALMS),
+            Number(process.env.MINBETINCREASE),
+            Number(process.env.MAXBETINCREASE),
+            Number(process.env.MINCOUNTINCREASE),
+            Number(process.env.MAXCOUNTINCREASE)
         )
       }
 

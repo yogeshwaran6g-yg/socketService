@@ -10,7 +10,7 @@ socket.on("connect", () => {
   // Example emits
   socket.emit("joinRoom", { roomName: "TigerDragon", playerId: 1, "username": "PlayerOne"});
 
-  socket.emit("placeBet", { match_uuid: "3a365b71-e87d-4655-a477-c41354483529", player_id: 1, username: "PlayerOne", clan_name: "Tiger", bet_amount: 100 });
+  socket.emit("placeBet", { match_uuid: "42b0ddbd-17da-45e8-a2a0-92deb57da895", player_id: 1, username: "PlayerOne", clan_name: "Tiger", bet_amount: 100 });
 
   
 });

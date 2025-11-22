@@ -181,30 +181,43 @@ class MatchStore {
    * @param {number} maxCountIncrease - Maximum amount to increase total dummy user count.
    */
   startDummySimulation(intervalMs, minBetIncrease, maxBetIncrease, minCountIncrease, maxCountIncrease) {
-    if (this.dummyInterval!==null) {
-      clearInterval(this.dummyInterval);
-      console.log('🔄 MatchStore: Restarting dummy simulation interval.');
-    }
-
-    this.dummyInterval = setInterval(() => {
-      for (const matchUuid in this.matches) {
-        const match = this.matches[matchUuid];
-        if (!match) continue;
-                
-    const randomCountIncrease = Math.abs(Math.round((Math.random() * maxCountIncrease - minCountIncrease )))+ minCountIncrease ;
-    
-    for (const clanName in match.clans) {
-        const randomClanBetIncrease = Math.abs(Math.round((Math.random() * maxBetIncrease - minBetIncrease )))+ minBetIncrease ;
-        match.clans[clanName].dummyTotal = randomClanBetIncrease;
-    }
-        match.users.dummy.totalCount = randomCountIncrease;
-        //console.log("updated the dummy data from dummy simulation ", match .clans, match.users.dummy.totalCount)
-
-      }
-    }, intervalMs);
-
-    console.log(`🚀 MatchStore: Dummy simulation started with interval ${intervalMs}ms.`);
+  if (this.dummyInterval) {
+    clearInterval(this.dummyInterval);
   }
+
+  this.dummyInterval = setInterval(() => {
+
+    for (const matchUuid in this.matches) {
+      const match = this.matches[matchUuid];
+      if (!match) continue;
+
+      // Count always resets (normal behavior)
+      const randomCountIncrease =
+        Math.floor(Math.random() * (maxCountIncrease - minCountIncrease + 1))
+        + minCountIncrease;
+
+      match.users.dummy.totalCount = randomCountIncrease;
+
+      // Clan bet always GROWS (never decreases)
+      for (const clanName in match.clans) {
+      
+        const randomClanBetIncrease =
+          Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1))
+          + minBetIncrease;
+      
+        // Force dummyTotal into a number
+        match.clans[clanName].dummyTotal =
+          Number(match.clans[clanName].dummyTotal) || 0;
+      
+        // Add correctly
+        match.clans[clanName].dummyTotal += randomClanBetIncrease - minBetIncrease;
+      }
+    }
+
+  }, intervalMs);
+
+  console.log(`🚀 Dummy simulation started with interval ${intervalMs}ms`);
+}
 
   /**
    * Stops the dummy betting simulation.
