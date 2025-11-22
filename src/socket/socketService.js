@@ -49,7 +49,7 @@ module.exports = socketService = {
 
       if (!matchStatus.length || matchStatus[0].status !== "ongoing") {
         return socket.emit("error", {
-          message: "Bets can only be placed on pending matches.",
+          message: "Bets can only be placed on ongoing matches.",
         });
       }
       await queryRunner(

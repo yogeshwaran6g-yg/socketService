@@ -38,7 +38,7 @@ async function createNewMatch() {
 
     // Initialize in-memory store
     MatchStore.initMatch(matchUuid1, matchName1, ["Tiger", "Dragon", "Tie"]);
-
+    MatchStore.testMatchuuid = matchUuid1;
     return { matchUuid1, matchName1 };
   } catch (error) {
     console.log("error with creating match ", error.message);
@@ -255,7 +255,7 @@ async function runSingleMatchCycle() {
     // 🔥 MAIN MATCH TIMER
     const interval = setInterval(async () => {
       // Emit full timer tick
-      const currentTotals = MatchStore.getMatchTotals(matchUuid1) || {
+      const currentTotals = await MatchStore.getMatchTotals(matchUuid1) || {
         real: { tiger: 0, dragon: 0, tie: 0 },
         dummy: { tiger: 0, dragon: 0, tie: 0 },
       };
@@ -263,12 +263,30 @@ async function runSingleMatchCycle() {
 
       io.to("TigerDragon").emit("matchTimerTick", {
         matchUuid1,
-        remaining,
-        betRemaining: betRemaining > 0 ? betRemaining : 0,
-        totalBet: {
-          real: currentTotals.real,
-          dummy: currentTotals.dummy,
-        },
+        matchRemainingTime : remaining,
+        status:
+          remaining <= 0
+            ? "MATCH_ENDED"
+            : remaining === FULL_MATCH_TIME
+            ? "MATCH_STARTED"
+            : betRemaining > 0
+            ? "BET_OPEN"
+            : "BET_CLOSED",
+        betRemainingTime: betRemaining > 0 ? betRemaining : 0,
+        // totalBet: {
+        //   real: currentTotals.real,
+        //   dummy: (remaining === FULL_MATCH_TIME || remaining <= 2) ? currentTotals.dummy : { tiger: 0, dragon: 0, tie: 0 },
+        // },
+        totalBet :
+          (remaining === FULL_MATCH_TIME || remaining <= 2)?
+             {                  
+              real: currentTotals.real,
+              dummy: currentTotals.dummy
+             }
+             :{
+               real: currentTotals.real,
+              //  dummy: { tiger: 0, dragon: 0, tie: 0 }
+             },
         usersCount,
       });
 
@@ -278,19 +296,19 @@ async function runSingleMatchCycle() {
       if (betRemaining > 0) {
         betRemaining--;
 
-        if (betRemaining === 0) {
-          io.to("TigerDragon").emit("matchStatus", {
-            matchUuid1,
-            status: "bet_closed",
-          });
+        // if (betRemaining === 0) {
+        //   io.to("TigerDragon").emit("matchStatus", {
+        //     matchUuid1,
+        //     status: "bet_closed",
+        //   });
 
-          io.to("TigerDragon").emit("matchStatus", {
-            matchUuid1,
-            status: "calculating",
-          });
+        //   io.to("TigerDragon").emit("matchStatus", {
+        //     matchUuid1,
+        //     status: "calculating",
+        //   });
 
           
-        }
+        // }
       }
 
       // ----------------------------------
@@ -299,20 +317,20 @@ async function runSingleMatchCycle() {
       // Calculate winner ONCE
       if(remaining ===10){
         winnerClan = await endMatch(matchUuid1, matchName);
-        winnerCalculated = true;
-        MatchStore.stopDummySimulation();
+        winnerCalculated = true;        
       }
       
       if (remaining <= 0) {
         clearInterval(interval);
 
-        io.to("TigerDragon").emit("matchStatus", {
-          matchUuid1,
-          status: "ended",
-          winner: winnerClan,
-        });
+        // io.to("TigerDragon").emit("matchStatus", {
+        //   matchUuid1,
+        //   status: "ended",
+        //   winner: winnerClan,
+        // });
         
-        //clear dummy data
+        //clear dummy data  MatchStore.stopDummySimulation();
+        MatchStore.stopDummySimulation();
         // Cleanup memory
         MatchStore.removeMatch(matchUuid1);
 

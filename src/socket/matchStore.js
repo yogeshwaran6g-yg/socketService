@@ -2,6 +2,7 @@ class MatchStore {
   constructor() {
     this.matches = {};
     this.dummyInterval = null;
+    this.testMatchuuid = null;
   }
 
   /**
@@ -16,10 +17,18 @@ class MatchStore {
       matchName,
       clans: {
         // example
-        // tiger:{
-        //   realTotal: 0,
-        //   dummyTotal: 0,
-        // }    
+        Tiger:{
+          realTotal: 0,
+          dummyTotal: 20000,
+        },
+        Dragon:{
+          realTotal: 0,
+          dummyTotal: 30000,
+        },
+        Tie:{
+          realTotal: 0,
+          dummyTotal: 20000,
+        },    
       },
       users: {
         real: {
@@ -35,7 +44,7 @@ class MatchStore {
         },
         dummy: {
 
-          totalCount: 0,
+          totalCount: 400,
         },
       },
     };
@@ -104,7 +113,7 @@ class MatchStore {
    * Get aggregated totals for broadcasting
    * @param {string} matchUuid
    */
-  getMatchTotals(matchUuid) {
+  async getMatchTotals(matchUuid) {
     const match = this.matches[matchUuid];
     if (!match) return null;
 
@@ -171,7 +180,7 @@ class MatchStore {
         realUsersCount:realusersCount,
         dummyUsersCount:dummyusersCount,
     }
-}
+  }
   /**
    * Starts a simulation for dummy bets and user counts across all active matches.
    * @param {number} intervalMs - The interval in milliseconds for the simulation to run.
@@ -195,8 +204,8 @@ class MatchStore {
       const randomCountIncrease =
         Math.floor(Math.random() * (maxCountIncrease - minCountIncrease + 1))
         + minCountIncrease;
+      match.users.dummy.totalCount += randomCountIncrease;
 
-      match.users.dummy.totalCount = randomCountIncrease;
 
       // Clan bet always GROWS (never decreases)
       for (const clanName in match.clans) {
@@ -210,7 +219,7 @@ class MatchStore {
           Number(match.clans[clanName].dummyTotal) || 0;
       
         // Add correctly
-        match.clans[clanName].dummyTotal += randomClanBetIncrease - minBetIncrease;
+        match.clans[clanName].dummyTotal += randomClanBetIncrease ;
       }
     }
 
