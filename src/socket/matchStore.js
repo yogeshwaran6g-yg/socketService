@@ -4,46 +4,41 @@ class MatchStore {
     this.dummyInterval = null;
     this.testMatchuuid = null;
   }
+  
 
-  /**
-   * Initialize a new match in memory
-   * @param {string} matchUuid
-   * @param {string} matchName
-   * @param {string[]} clanNames
-   */
   initMatch(matchUuid, matchName, clanNames = []) {
     this.matches[matchUuid] = {
       matchUuid,
       matchName,
       clans: {
         // example
-        Tiger:{
+        Tiger: {
           realTotal: 0,
           dummyTotal: 20000,
         },
-        Dragon:{
+        Dragon: {
           realTotal: 0,
           dummyTotal: 30000,
         },
-        Tie:{
+        Tie: {
           realTotal: 0,
           dummyTotal: 20000,
-        },    
+        },
       },
       users: {
         real: {
-            // example
-            // {
-            //   username: "Alice",
-            //   totalBet: 100,
-            //   bets: [
-            //     { clanName: "tiger", amount: 50, time: 1700000000000 },
-            //     { clanName: "dragon", amount: 50, time: 1700000000000 },
-            //   ],
-            // }
+          // example
+          // {
+          //   username: "Alice",
+          //   totalBet: 100,
+          //   bets: [
+          //     { clanName: "tiger", amount: 50, time: 1700000000000 },
+          //     { clanName: "dragon", amount: 50, time: 1700000000000 },
+          //   ],
+          // }
         },
         dummy: {
-            totalCount: Math.floor(Math.random() * (600 - 500 + 1)) + 500,
+          totalCount: Math.floor(Math.random() * (600 - 500 + 1)) + 500,
         },
       },
     };
@@ -59,17 +54,7 @@ class MatchStore {
     console.log(` MatchStore: Initialized match ${matchUuid}`);
   }
 
-  /**
-   * Add a bet to the match
-   * @param {string} matchUuid
-   * @param {string} userId
-   * @param {string} username
-   * @param {string} clanName
-   * @param {number} amount
-   * @param {boolean} isDummy
-   */
-
-//  !todo  adjust the dummy case change the clan dummy dats
+  //  !todo  adjust the dummy case change the clan dummy dats
   addBet(matchUuid, userId, username, clanName, amount, isDummy = false) {
     const match = this.matches[matchUuid];
     if (!match) {
@@ -78,7 +63,9 @@ class MatchStore {
     }
 
     if (!match.clans[clanName]) {
-      console.error(`❌ MatchStore: Clan ${clanName} not found in match ${matchUuid}`);
+      console.error(
+        `❌ MatchStore: Clan ${clanName} not found in match ${matchUuid}`
+      );
       return false;
     }
 
@@ -86,8 +73,8 @@ class MatchStore {
 
     // Update Clan Totals
     if (isDummy) {
-        //fix tis 
-        return;
+      //fix tis
+      return;
       match.clans[clanName].dummyTotal += amount;
       match.users.dummy.totalCount++; // Increment dummy bet count (or user count if tracking distinct dummies)
     } else {
@@ -95,23 +82,24 @@ class MatchStore {
 
       // Update Real User Data
       if (!match.users.real[userId]) {
-        match.users.real[userId] = {// if new user => adding real user data
+        match.users.real[userId] = {
+          // if new user => adding real user data
           username,
           totalBet: 0,
           bets: [],
         };
       }
       match.users.real[userId].totalBet += amount; //adding users real total clan bet
-      match.users.real[userId].bets.push({ clanName, amount, time: Date.now() }); //adding users real clan bets
+      match.users.real[userId].bets.push({
+        clanName,
+        amount,
+        time: Date.now(),
+      }); //adding users real clan bets
     }
 
     return true;
   }
 
-  /**
-   * Get aggregated totals for broadcasting
-   * @param {string} matchUuid
-   */
   async getMatchTotals(matchUuid) {
     const match = this.matches[matchUuid];
     if (!match) return null;
@@ -137,14 +125,10 @@ class MatchStore {
     //     dragon: 150,
     //     tie : 300,
     //   },
-    // }    
+    // }
     return result;
   }
 
-  /**
-   * Remove match data from memory
-   * @param {string} matchUuid
-   */
   removeMatch(matchUuid) {
     if (this.matches[matchUuid]) {
       delete this.matches[matchUuid];
@@ -152,95 +136,107 @@ class MatchStore {
     }
   }
 
-  /**
-   * Get player total bet for broadcasting
-   * @param {string} matchUuid
-   * @param {string} userId
-   */   
   getPlayerTotalBet(matchUuid, userId) {
     const match = this.matches[matchUuid];
     if (!match) return null;
 
-    if(match.users.real[userId] && match.users.real[userId].totalBet){
-        return match.users.real[userId].totalBet
+    if (match.users.real[userId] && match.users.real[userId].totalBet) {
+      return match.users.real[userId].totalBet;
     }
-    throw new Error("failed to get bet data"); 
+    throw new Error("failed to get bet data");
   }
 
-
-
-  getUsersCount(matchUuid){
+  getUsersCount(matchUuid) {
     const match = this.matches[matchUuid];
     if (!match) return null;
     const realusersCount = Object.keys(match.users.real).length;
     const dummyusersCount = match.users.dummy.totalCount;
 
-    return{
-        realUsersCount:realusersCount,
-        dummyUsersCount:dummyusersCount,
+    return {
+      realUsersCount: realusersCount,
+      dummyUsersCount: dummyusersCount,
+    };
+  }
+
+  startDummySimulation(
+    intervalMs,
+    minBetIncrease,
+    maxBetIncrease,
+    minCountIncrease,
+    maxCountIncrease
+  ) {
+    if (this.dummyInterval) {
+      clearInterval(this.dummyInterval);
     }
-  }
-  /**
-   * Starts a simulation for dummy bets and user counts across all active matches.
-   * @param {number} intervalMs - The interval in milliseconds for the simulation to run.
-   * @param {number} minBetIncrease - Minimum amount to increase total dummy bets.
-   * @param {number} maxBetIncrease - Maximum amount to increase total dummy bets.
-   * @param {number} minCountIncrease - Minimum amount to increase total dummy user count.
-   * @param {number} maxCountIncrease - Maximum amount to increase total dummy user count.
-   */
-  startDummySimulation(intervalMs, minBetIncrease, maxBetIncrease, minCountIncrease, maxCountIncrease) {
-  if (this.dummyInterval) {
-    clearInterval(this.dummyInterval);
-  }
 
-  this.dummyInterval = setInterval(() => {
+    this.dummyInterval = setInterval(() => {
+      for (const matchUuid in this.matches) {
+        const match = this.matches[matchUuid];
+        if (!match) continue;
 
-    for (const matchUuid in this.matches) {
-      const match = this.matches[matchUuid];
-      if (!match) continue;
+        // Count always resets (normal behavior)
+        const randomCountIncrease =
+          Math.floor(
+            Math.random() * (maxCountIncrease - minCountIncrease + 1)
+          ) + minCountIncrease;
+        match.users.dummy.totalCount += randomCountIncrease;
 
-      // Count always resets (normal behavior)
-      const randomCountIncrease =
-        Math.floor(Math.random() * (maxCountIncrease - minCountIncrease + 1))
-        + minCountIncrease;
-      match.users.dummy.totalCount += randomCountIncrease;
+        // Clan bet always GROWS (never decreases)
+        for (const clanName in match.clans) {
+          const randomClanBetIncrease =
+            Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1)) +
+            minBetIncrease;
 
+          // Force dummyTotal into a number
+          match.clans[clanName].dummyTotal =
+            Number(match.clans[clanName].dummyTotal) || 0;
 
-      // Clan bet always GROWS (never decreases)
-      for (const clanName in match.clans) {
-      
-        const randomClanBetIncrease =
-          Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1))
-          + minBetIncrease;
-      
-        // Force dummyTotal into a number
-        match.clans[clanName].dummyTotal =
-          Number(match.clans[clanName].dummyTotal) || 0;
-      
-        // Add correctly
-        match.clans[clanName].dummyTotal += randomClanBetIncrease ;
+          // Add correctly
+          match.clans[clanName].dummyTotal += randomClanBetIncrease;
+        }
       }
-    }
+    }, intervalMs);
 
-  }, intervalMs);
+    console.log(`🚀 Dummy simulation started with interval ${intervalMs}ms`);
+  }
 
-  console.log(`🚀 Dummy simulation started with interval ${intervalMs}ms`);
-}
-
-  /**
-   * Stops the dummy betting simulation.
-   */
   stopDummySimulation() {
     if (this.dummyInterval) {
       clearInterval(this.dummyInterval);
       this.dummyInterval = null;
-      console.log('MatchStore: Dummy simulation stopped.');
+      console.log("MatchStore: Dummy simulation stopped.");
     }
   }
-
 }
 
 module.exports = new MatchStore();
 
+// list of functions and purpose in table
+/*
+| Function Name | Purpose |
+|---------------|---------|
+|initMatch(
+|          matchUuid,
+|          matchName, 
+|         clanNames) | Initializes a new match in memory with given UUID, name, and clans. |
+|
+addBet(matchUuid, 
+        userId, 
+        username, 
+        clanName, 
+        amount, 
+        isDummy) | Adds a bet to the specified match for a user or dummy. |
+|getMatchTotals(matchUuid) | Retrieves aggregated totals of bets for broadcasting. |
+|removeMatch(matchUuid) | Removes match data from memory. |
+|getPlayerTotalBet(matchUuid, userId) | Gets the total bet amount for a specific player in a match. |
+|getUsersCount(matchUuid) | Retrieves the count of real and dummy users for a match. |
 
-// paka
+
+|startDummySimulation(intervalMs, minBetIncrease, maxBetIncrease, minCountIncrease, maxCountIncrease) | Starts a simulation for dummy bets and user counts across all active matches. |
+|stopDummySimulation() | Stops the dummy betting simulation. |
+
+Summary of functions:
+
+
+
+*/

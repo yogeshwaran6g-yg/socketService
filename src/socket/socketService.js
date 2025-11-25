@@ -1,12 +1,77 @@
 const { queryRunner } = require("../config/db");
 const MatchStore = require("./matchStore");
 
+
+
+  async function isMatchOngoing(match_uuid) {
+    const rows = await queryRunner(
+      `SELECT status FROM matches WHERE match_uuid = ?`,
+      [match_uuid]
+    );
+
+    return rows.length && rows[0].status === "ongoing";
+  }
+
+  async function validatePlaceBet(data) {
+    const required = ["match_uuid", "player_id", "username", "clan_name", "bet_amount"];
+
+    for (const field of required) {
+      if (!data[field]) {
+        return { valid: false, message: `Missing field: ${field}` };
+      }
+    }
+    return { valid: true };
+  }
+
+  async function inserPlayer({match_uuid, player_id, username, clan_name, bet_amount}){
+    
+    try{
+    await queryRunner(
+        `INSERT INTO bets (
+          match_uuid,
+          player_id, 
+          username, 
+          clan_name, 
+          bet_amount)
+       VALUES (?, ?, ?, ?, ?)`,
+        [match_uuid, player_id, username, clan_name, bet_amount]
+      );
+
+      console.log(`💰 ${username} bet ${bet_amount} on ${clan_name}`);
+      const matchStoreResult = MatchStore.addBet(             //add to match store with clans wise 
+                                                match_uuid,
+                                                player_id, 
+                                                username, 
+                                                clan_name, 
+                                                bet_amount, 
+                                                false);
+      if(!matchStoreResult){
+        return false;
+      }
+      return true;      
+    }catch(err){
+      console.log('Error inserting player bet:', err.message);
+      throw err;
+    }
+  }
+
+
+
 module.exports = socketService = {
+  
   joinRoom: async function (socket, io, { playerId, username, roomName }) {
     try {
+
+      const roomNames = ["TigerDragon", "AndarBahar", "7Up7Down", "JhandiMunda", "CarRoulette"];
       if (!roomName || !playerId || !username) {
         return socket.emit("error", {
           message: "roomName and playerId required",
+        });
+      }
+
+      if (!roomNames.includes(roomName)) {
+        return socket.emit("error", {
+          message: "Invalid room name",
         });
       }
 
@@ -20,57 +85,58 @@ module.exports = socketService = {
       });
 
       // Notify all players in that room
-      io.to(`${roomName}`).emit("playerJoinedRoom", {
-        playerId,
-        username,
-        message: `${username || "A player"} joined ${roomName}`,
-      });
+      // io.to(`${roomName}`).emit("playerJoinedRoom", { //removed because the client does not need it
+      //   playerId,
+      //   username,
+      //   message: `${username || "A player"} joined ${roomName}`,
+      // });      
     } catch (err) {
       console.error("❌ Error in joinRoom:", err.message);
-      socket.emit("error", { message: "Failed to join room." });
+      socket.emit(
+          "error", {
+             message: "Failed to join room." 
+            });
     }
   },
 
+  
   placeBet: async (socket, io, data) => {
     const { match_uuid, player_id, username, clan_name, bet_amount } = data;
-
-    if (!match_uuid || !player_id || !username || !clan_name || !bet_amount) {
-      return socket.emit("error", { message: "Invalid bet data" });
+    const validation = await validatePlaceBet(data); //helper to validate data
+    
+    if (!validation.valid) {
+      return socket.emit("error", { message: validation.message });    
     }
-
     try {
       // 💰 1️⃣ Insert bet record
-
-      // Check match status before accepting bets
-      const matchStatus = await queryRunner(
-        `SELECT status FROM matches WHERE match_uuid = ?`,
-        [match_uuid]
-      );
-
-      if (!matchStatus.length || matchStatus[0].status !== "ongoing") {
-        return socket.emit("error", {
-          message: "Bets can only be placed on ongoing matches.",
-        });
+      //1. Check match status before accepting bets
+      const ongoing = await isMatchOngoing(match_uuid);
+      if (!ongoing) {
+        return socket.emit("error", { 
+                  success: false, 
+                  message: "Bets are closed for this match." });
       }
-      await queryRunner(
-        `INSERT INTO bets (match_uuid, player_id, username, clan_name, bet_amount)
-       VALUES (?, ?, ?, ?, ?)`,
-        [match_uuid, player_id, username, clan_name, bet_amount]
-      );
 
-      console.log(`💰 ${username} bet ${bet_amount} on ${clan_name}`);
-
-      // ✅ 2️⃣ Acknowledge bet placed to this socket
+      //2. Insert bet into database and update MatchStore
+      const insertResult = await inserPlayer({
+                                            match_uuid, 
+                                            player_id, 
+                                            username, 
+                                            clan_name, 
+                                            bet_amount});
+      if(!insertResult){
+        return socket.emit("error", {
+          success: false,
+          message: "Failed to place bet in match store." });
+      }
+      
+      // 3. Acknowledge bet placed to this socket
       socket.emit("betPlaced", {
         success: true,
         message: `You bet ${bet_amount} on ${clan_name}`,
       });
 
       // 📊 3️⃣ Update In-Memory Store
-      const matchStoreResult = MatchStore.addBet(match_uuid, player_id, username, clan_name, bet_amount, false)
-      if(!matchStoreResult){
-        throw new Error('Internal error')
-      }
       //get player total
       const playerTotalBet = MatchStore.getPlayerTotalBet(match_uuid, player_id);
 
@@ -88,7 +154,10 @@ module.exports = socketService = {
       console.error(err);
       socket.emit("error", { message: err.message || "Failed to place bet" });
     }
-  },
+  },  
+
+
+
 
   emitLast10History: async function (io, roomName) {
     try {

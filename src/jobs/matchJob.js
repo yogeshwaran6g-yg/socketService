@@ -4,6 +4,10 @@ const { getIO: getIoInstance } = require("../socket/socketController");
 const SocketService = require("../socket/socketService");
 const MatchStore = require("../socket/matchStore");
 require("dotenv").config();
+var tigerdata=Math.floor(Math.random() * (5000 - 10000 + 1)) + 10000
+var dragondata=Math.floor(Math.random() * (5000 - 10000   + 1)) + 10000
+var tiedata=Math.floor(Math.random() * (5000 - 10000 + 1)) + 10000
+
 
 async function createNewMatch() {
   try {
@@ -19,19 +23,6 @@ async function createNewMatch() {
       VALUES (?, ?, 'pending', NOW())
     `;
     await queryRunner(sql, [matchUuid1, matchName1]);
-
-    // 2. add clans
-    // Random clans
-    // const clans = ["Tiger", "Dragon", "Tie"];
-    // const chosen = clans.sort(() => 0.5 - Math.random()).slice(0, 2);
-
-    // for (const clan of chosen) {
-    //     await queryRunner(
-    //     `INSERT INTO match_clans (match_uuid, clan_name) VALUES (?, ?)`,
-    //     [matchUuid1, clan]
-    //     );
-    // }
-
     console.log(
       `🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`
     );
@@ -44,10 +35,6 @@ async function createNewMatch() {
     console.log("error with creating match ", error.message);
   }
 }
-
-/**
- * ⚡ Start a match (sets status & start_time)
- **/
 
 async function startMatch(matchUuid) {
   try {
@@ -62,10 +49,6 @@ async function startMatch(matchUuid) {
     console.log("error on start match", error.message);
   }
 }
-
-/**
- * 🏁 End a match (sets status & end_time)
- **/
  
 // ! newlly added lowest winx return
 async function endMatch(matchUuid, matchName) {
@@ -232,7 +215,7 @@ async function runSingleMatchCycle() {
 
     // ENV configs
     const FULL_MATCH_TIME = Number(process.env.MATCH_FULL_TIME || 60); 
-    const BET_COUNTDOWN = Number(process.env.MATCH_BET_COUNTDOWN || 40); 
+    const BET_COUNTDOWN = Number(process.env.MATCH_BET_COUNTDOWN || 45); 
     const TICK_INTERVAL = Number(process.env.COUNTDOWN_INTERVAL || 1000);
     
     if (!FULL_MATCH_TIME || !BET_COUNTDOWN)
@@ -266,8 +249,8 @@ async function runSingleMatchCycle() {
         winner: winnerClan,
         matchRemainingTime : remaining,
         status:
-          remaining <= 0
-            ? "MATCH_ENDED"
+          remaining <= 10
+            ? "MATCH_RESULT"
             : remaining === FULL_MATCH_TIME 
             ? "MATCH_STARTED"
             : betRemaining > 0
@@ -277,16 +260,22 @@ async function runSingleMatchCycle() {
         
         
         totalBet :
-          (remaining === FULL_MATCH_TIME || remaining === 59 || remaining === 1) ?
+          (remaining === FULL_MATCH_TIME || remaining === 59) ?
              {                  
-              real: currentTotals.real,
-              dummy: currentTotals.dummy,
-              // endDummy:
+              // real: currentTotals.real,
+              dummy: { 
+                         Tiger:  tigerdata,
+                         Dragon: dragondata,
+                         Tie:    tiedata
+                        },
              }
              :{              
-               real: currentTotals.real,
-               dummy: { tiger: 0, dragon: 0, tie: 0 },
-              //  dummy: { tiger: 0, dragon: 0, tie: 0 }
+              //  real: currentTotals.
+              dummy: { 
+                         Tiger:  tigerdata,
+                         Dragon: dragondata,
+                         Tie:    tiedata
+                      }
              },
         usersCount,
       });
@@ -344,12 +333,6 @@ async function runSingleMatchCycle() {
     }, TICK_INTERVAL);
   });
 }
-
-
-/**
- * 🔁 Job function that runs when app starts
- * Creates → starts → ends a match (demo flow)
- **/
 
 async function startMatchScheduler() {
   console.log("🕒 Match scheduler started...");

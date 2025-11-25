@@ -69,3 +69,55 @@ add dummy data in tick not condition(done)
 and in the fist return ,make the return data of dummy
 winneer emit in tick    (done ) {iitial not calculated the   winner clan }
 make dummy user data drop slighlly (done)  (initial 500 to 600 then increase by 1 to 6)
+
+
+
+match winx config
+
+module.exports = {
+  TigerDragon: {
+    clans: ["Tiger", "Dragon", "Tie"],
+    winx: {
+      Tiger: 2,
+      Dragon: 2,
+      Tie: 9,
+    },
+  },
+
+  TeenPatti: {
+    clans: ["Player", "Dealer"],
+    winx: {
+      Player: 2,
+      Dealer: 2
+    }
+  },
+
+  AndarBahar: {
+    clans: ["Andar", "Bahar"],
+    winx: {
+      Andar: 2,
+      Bahar: 2
+    }
+  },
+
+  Roulette: {
+    clans: ["Red", "Black", "Odd", "Even"],
+    winx: {
+      Red: 2,
+      Black: 2,
+      Odd: 2,
+      Even: 2
+    }
+  },
+
+  Poker: {
+    clans: ["High", "Low"],
+    winx: {
+      High: 2,
+      Low: 2
+    }
+  }
+};
+
+
+<!-- const roomNames = ["TigerDragon", "AndarBahar", "7Up7Down", "JhandiMunda", "CarRoulette"]; -->
