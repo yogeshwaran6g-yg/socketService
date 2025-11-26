@@ -11,7 +11,7 @@ const errorHandler = require("./middleware/errHandler");
 const matchStore = require("./socket/matchStore")
 require("dotenv").config();
 //job
-const {startMatchScheduler}=require("./jobs/matchJob")
+const {parentAllGameScheduler}=require("./jobs/matchJob")
 
 const app = express();
 app.use(helmet());
@@ -39,7 +39,7 @@ const server = http.createServer(app);
 
 // Initialize Socket.IO
 initSocket(server);
-startMatchScheduler();
+parentAllGameScheduler();
 
 // Start server
 server.listen(PORT, () => {

@@ -121,3 +121,6 @@ module.exports = {
 
 
 <!-- const roomNames = ["TigerDragon", "AndarBahar", "7Up7Down", "JhandiMunda", "CarRoulette"]; -->
+//!todo fix the dummy bet total for each clan 
+
+<!-- !todo lock the bet correctlly after the bet closes -->

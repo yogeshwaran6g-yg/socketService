@@ -1,29 +1,30 @@
 class MatchStore {
   constructor() {
     this.matches = {};
-    this.dummyInterval = null;
+    this.dummyIntervals = {};
     this.testMatchuuid = null;
   }
-  
 
+  //! todo fix the dummy bet total for each clan
   initMatch(matchUuid, matchName, clanNames = []) {
     this.matches[matchUuid] = {
       matchUuid,
       matchName,
+      matchStatus: "pending",
       clans: {
         // example
-        Tiger: {
-          realTotal: 0,
-          dummyTotal: 20000,
-        },
-        Dragon: {
-          realTotal: 0,
-          dummyTotal: 30000,
-        },
-        Tie: {
-          realTotal: 0,
-          dummyTotal: 20000,
-        },
+        // Tiger: {
+        //   realTotal: 0,
+        //   dummyTotal: 20000,
+        // },
+        // Dragon: {
+        //   realTotal: 0,
+        //   dummyTotal: 30000,
+        // },
+        // Tie: {
+        //   realTotal: 0,
+        //   dummyTotal: 20000,
+        // },
       },
       users: {
         real: {
@@ -47,14 +48,14 @@ class MatchStore {
     clanNames.forEach((clan) => {
       this.matches[matchUuid].clans[clan] = {
         realTotal: 0,
-        dummyTotal: 0,
+        dummyTotal: Math.floor(Math.random() * (5000 - 10000 + 1)) + 10000
       };
     });
 
-    console.log(` MatchStore: Initialized match ${matchUuid}`);
+    console.log(` MatchStore: Initialized match ${matchUuid} - ${matchName}`);
   }
 
-  //  !todo  adjust the dummy case change the clan dummy dats
+  //  !todo  adjust the dummy data clan name cases
   addBet(matchUuid, userId, username, clanName, amount, isDummy = false) {
     const match = this.matches[matchUuid];
     if (!match) {
@@ -158,55 +159,66 @@ class MatchStore {
     };
   }
 
-  startDummySimulation(
-    intervalMs,
-    minBetIncrease,
-    maxBetIncrease,
-    minCountIncrease,
-    maxCountIncrease
-  ) {
-    if (this.dummyInterval) {
-      clearInterval(this.dummyInterval);
-    }
 
-    this.dummyInterval = setInterval(() => {
-      for (const matchUuid in this.matches) {
-        const match = this.matches[matchUuid];
-        if (!match) continue;
+ // inside MatchStore object
 
-        // Count always resets (normal behavior)
-        const randomCountIncrease =
-          Math.floor(
-            Math.random() * (maxCountIncrease - minCountIncrease + 1)
-          ) + minCountIncrease;
-        match.users.dummy.totalCount += randomCountIncrease;
 
-        // Clan bet always GROWS (never decreases)
-        for (const clanName in match.clans) {
-          const randomClanBetIncrease =
-            Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1)) +
-            minBetIncrease;
 
-          // Force dummyTotal into a number
-          match.clans[clanName].dummyTotal =
-            Number(match.clans[clanName].dummyTotal) || 0;
-
-          // Add correctly
-          match.clans[clanName].dummyTotal += randomClanBetIncrease;
-        }
-      }
-    }, intervalMs);
-
-    console.log(`🚀 Dummy simulation started with interval ${intervalMs}ms`);
+startDummySimulationForMatch(
+  matchUuid,
+  intervalMs,
+  minBetIncrease,
+  maxBetIncrease,
+  minCountIncrease,
+  maxCountIncrease
+) {
+  // If interval exists, clear it first
+  if (this.dummyIntervals[matchUuid]) {
+    clearInterval(this.dummyIntervals[matchUuid]);
   }
 
-  stopDummySimulation() {
-    if (this.dummyInterval) {
-      clearInterval(this.dummyInterval);
-      this.dummyInterval = null;
-      console.log("MatchStore: Dummy simulation stopped.");
-    }
+  // Create new interval for this match only
+  const interval = setInterval(() => {
+
+    const match = this.matches[matchUuid];
+    if (!match) return;   // match removed → safely ignore
+
+    // --- Dummy user count ---
+    const randomCountIncrease =
+      Math.floor(Math.random() * (maxCountIncrease - minCountIncrease + 1)) +
+      minCountIncrease;
+
+    match.users.dummy.totalCount += randomCountIncrease;
+
+    // --- Dummy clan bet ---
+    // for (const clanName in match.clans) {
+    //   const randomClanBetIncrease =
+    //     Math.floor(Math.random() * (maxBetIncrease - minBetIncrease + 1)) +
+    //     minBetIncrease;
+
+    //   match.clans[clanName].dummyTotal =
+    //     Number(match.clans[clanName].dummyTotal) || 0;
+
+    //   match.clans[clanName].dummyTotal += randomClanBetIncrease;
+    // }
+
+  }, intervalMs);
+
+  this.dummyIntervals[matchUuid] = interval;
+
+  console.log(`🚀 Dummy simulation started for match ${matchUuid}`);
+}
+
+
+stopDummySimulationForMatch(matchUuid) {
+  const interval = this.dummyIntervals[matchUuid];
+  if (interval) {
+    clearInterval(interval);
+    delete this.dummyIntervals[matchUuid];
+    console.log(`🛑 Dummy simulation stopped for match ${matchUuid}`);
   }
+}
+
 }
 
 module.exports = new MatchStore();
