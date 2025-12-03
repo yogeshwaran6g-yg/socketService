@@ -249,7 +249,7 @@ async function runSingleMatchCycle(gameName) {
       const currentTotals =  matchTotals;
       const usersCount = MatchStore.getUsersCount(matchUuid1) || usersCountInitial;
 
-      io.to("TigerDragon").emit("matchTimerTick", {
+      io.to(`${gameName}`).emit(`matchTimerTick`, {
         matchUuid1,
         winner: winnerClan,
         matchRemainingTime: remaining,
