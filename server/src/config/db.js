@@ -1,5 +1,5 @@
 const { createPool } = require('mysql2/promise');
-const config = require('../config/index.js');
+const config = require('./index.js');
 
 const connPool = createPool({ 
 

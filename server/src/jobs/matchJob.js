@@ -6,7 +6,7 @@ const MatchStore = require("../socket/matchStore");
 const matchStore = require("../socket/matchStore");
 const { gameWinx } = require("../config/index");
 require("dotenv").config();
-
+const settingsController = require("../controller/settingsController")
 
 // Winner Calculator Helper
 function calculateWinner(rows, clanData) {
@@ -65,8 +65,6 @@ function calculateWinner(rows, clanData) {
   return potentialWinners[0].clan_name;
 }
 
-
-
 //init new match in db and in memory store
 async function createNewMatch(matchName, clanNames) {
   try {
@@ -96,6 +94,7 @@ async function createNewMatch(matchName, clanNames) {
 }
 
 async function startMatch(matchUuid) {
+
   try {
     // 1. Update DB
     const sql = `
@@ -111,14 +110,38 @@ async function startMatch(matchUuid) {
   } catch (error) {
     console.log("error on start match", error.message);
   }
+
 }
 
-
 // ! newlly added lowest winx return
-async function endMatch(matchUuid, matchName) {
+async function endMatch(gameName, matchUuid, matchName) {
   try {
     console.log(`🏁 Ending match: ${matchUuid} (${matchName})`);
 
+    const fixedWinerEnableCheckData = await settingsController.isFixedWinner(gameName);//get fixed winner data for game
+
+    if(fixedWinerEnableCheckData.isEnabled){//
+      console.log("fixed winner enabled here the game name and data ",fixedWinerEnableCheckData )
+      const  result = await settingsController.updateCompleMatchForFixedWinner(
+                                                          gameName, 
+                                                          fixedWinerEnableCheckData.completedMatch,
+                                                          fixedWinerEnableCheckData.totalMatch
+
+                                                        );//update completed match count for fixed winner and if the completed match matches the total match the fixed winner disabled 
+
+      console.log(`🎯 fixed winner selected: ${fixedWinerEnableCheckData.winnerClan}`);
+
+      await queryRunner(
+        `UPDATE matches
+         SET status='completed', end_time=NOW(), winner_clan=?
+         WHERE match_uuid=?`,
+        [fixedWinerEnableCheckData.winnerClan, matchUuid]
+      );
+
+      const io = getIoInstance();
+      await SocketService.emitLast10History(io, matchName);
+      return fixedWinerEnableCheckData.winnerClan;
+    }
     const matchConfig = gameWinx[matchName];
     if (!matchConfig) {
       console.log("❌ Match config not found");
@@ -158,6 +181,7 @@ async function endMatch(matchUuid, matchName) {
 
     // 2️⃣ Use helper to compute winner
     const winnerClan = calculateWinner(rows, clanData);
+    
 
     console.log(`🏆 Final Winner: ${winnerClan}`);
 
@@ -179,8 +203,6 @@ async function endMatch(matchUuid, matchName) {
     return null;
   }
 }
-
-
 
 async function runSingleMatchCycle(gameName) {
   const io = getIoInstance();
@@ -245,8 +267,8 @@ async function runSingleMatchCycle(gameName) {
     // -----------------------------------
     const interval = setInterval(async () => {
 
-      // Always fetch updated totals for accurate dummy data
-      const currentTotals =  matchTotals;
+      // Always fetch updated totals for accurate dummy data      
+        const currentTotals =  matchTotals;
       const usersCount = MatchStore.getUsersCount(matchUuid1) || usersCountInitial;
 
       io.to(`${gameName}`).emit(`matchTimerTick`, {
@@ -301,7 +323,7 @@ async function runSingleMatchCycle(gameName) {
       // 🔴 CALCULATE WINNER ONCE
       // ----------------------------------
       if (remaining === 10 && !winnerCalculated) {
-        winnerClan = await endMatch(matchUuid1, matchName);
+        winnerClan = await endMatch(gameName, matchUuid1, matchName);
         winnerCalculated = true;
       }
 
@@ -331,7 +353,6 @@ async function runSingleMatchCycle(gameName) {
   });
 }
 
-
 async function startMatchScheduler(gameName) {
   console.log("🕒 Match scheduler started...");
 
@@ -339,7 +360,7 @@ async function startMatchScheduler(gameName) {
 
   async function loop() {
     console.log("🚀 Starting new match cycle...");
-    await runSingleMatchCycle(gameName);  // wait fully
+    await   runSingleMatchCycle(gameName );  // wait fully
     console.log("🏁 Match finished. Waiting for next cycle...");
     await new Promise(res => setTimeout(res, GAP_BETWEEN_MATCHES * 1000));
     loop(); // repeat
@@ -348,18 +369,19 @@ async function startMatchScheduler(gameName) {
   loop();
 }
 
-function parentAllGameScheduler() {
+async function parentAllGameScheduler() {
   console.log("🔥 Starting ALL game schedulers...");
-
-  const gameNames = Object.keys(gameWinx);
-
+  // const gameNames = Object.keys(gameWinx);
+  const gameNames = ["TigerDragon"]
   gameNames.forEach((gameName) => {
     console.log(`🎮 Starting scheduler for: ${gameName}`);
-    startMatchScheduler(gameName);  // each game runs independently
+    startMatchScheduler(gameName);
   });
 
   console.log("🚀 All game cycles are now running.");
 }
+
+
 
 
 module.exports = {

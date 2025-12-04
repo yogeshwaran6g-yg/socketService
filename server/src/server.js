@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 app.use(morgan("dev"));
 
--
+app.use("/api/settings", require("./routes/settingsRoute"));
 app.get("/", (req, res) => {
   return res.status(200).json({ msg: "🚀 Welcome to Socket.IO Service" });
 });
