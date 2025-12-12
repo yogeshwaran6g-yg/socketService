@@ -124,3 +124,56 @@ module.exports = {
 //!todo fix the dummy bet total for each clan 
 
 <!-- !todo lock the bet correctlly after the bet closes -->
+
+
+id`, `game_name`, `fixed_clan`, `enabled`, `total_match`, `completed_match`, `updated_at`, `created_at
+
+
+
+
+
+
+
+
+== need an job handler to set the fixed winner 
+
+make an option 
+
+
+
+
+//NEW
+clean all db use only match store
+USE MEMORY ONLY TO STORE THE USER BETS AND CLAN MANAGEMENTS
+
+
+MAKE THE CRON TO MEMORY 
+
+make a req after match to store match data 
+
+
+10/11
+
+
+1.socket connection ack:
+
+   "connectionAcknowledged" => response format = {
+      success: true,
+      socketId: socket.id,
+      message: "Successfully connected to server"
+   }
+
+2.socket left room and left room ack:
+
+   "leftRoom" payload data = { roomName }
+
+   "leftRoomSuccess" => response format {
+      success: true,
+      message: `You left ${roomName}`,
+   }
+
+
+
+//heap report
+
+initial 20

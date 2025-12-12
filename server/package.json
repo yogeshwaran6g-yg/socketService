@@ -11,6 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@sentry/node": "^10.29.0",
+    "@sentry/profiling-node": "^10.29.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -19,6 +21,7 @@
     "http": "^0.0.1-security",
     "morgan": "^1.10.1",
     "mysql2": "^3.15.3",
+    "node-cron": "^4.2.1",
     "nodemon": "^3.1.10",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",

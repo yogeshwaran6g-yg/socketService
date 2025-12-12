@@ -1,7 +1,10 @@
 //socketController 
 const { Server } = require("socket.io");
-const socketService = require("./socketService")
+const socketService = require("../service/socketService")
+let {authenticator} = require("../middleware/authenticator")
+
 let ioInstance;
+
 
 async function initSocket(server) {
   ioInstance = new Server(server, {
@@ -14,14 +17,20 @@ async function initSocket(server) {
     },
   });
   console.log("⚙️ Socket.IO initialized");
-
+  ioInstance.use(authenticator)
   ioInstance.on("connection", (socket) => {
-    console.log(`🟢 New client connected: ${socket.id}`);
 
+    console.log(`🟢 New client connected: ${socket.id}`);
+    socket.emit("connectionAcknowledged", {
+      success: true,
+      socketId: socket.id,
+      message: "Successfully connected to server"
+    });
 
     // 1.
     socket.on("joinRoom", async function(data){
-        await socketService.joinRoom(socket, ioInstance, data)
+      await socketService.joinRoom(socket, ioInstance, data);      
+
     });
 
     // 2.
@@ -29,10 +38,37 @@ async function initSocket(server) {
         await socketService.placeBet(socket, ioInstance, data);
     });
 
+    // 3.
+    socket.on("disconnect", () => {
+        console.log(`socket ${socket.id} disconnected`);
+    });
 
 
+    socket.on("leftRoom",async function (data){
+        await socketService.leaveRoom(socket, data)
+    })
 
+    socket.on("setFixedWinner", async function (data){
+       if(!socket?.isAdmin){
+           return socket.emit("setFixedWinnerResult", {
+            success: false,
+            message: "Unauthorized admin key"
+        });       
+       }
 
+        await socketService.setFixedWinner(socket, data);
+    })
+
+    socket.on("setFixedTimedWinner", async function (data){
+       if(!socket?.isAdmin){
+           return socket.emit("setFixedTimedWinnerResult", {
+            success: false,
+            message: "Unauthorized admin key"
+        });       
+       }
+
+        await socketService.setFixedTimedWinner(socket, data);
+    })
     // ? old sockets 
     // 1 join room
     //   socket.on("joinMatch", (data) => {
@@ -124,9 +160,7 @@ async function initSocket(server) {
     
 
 
-    // socket.on("disconnect", () => {//disconnect event
-    //   console.log(`🔴 Client disconnected: ${socket.id}`);
-    // });
+    
   });
 }
 

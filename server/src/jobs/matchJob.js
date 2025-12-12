@@ -1,12 +1,13 @@
 const { queryRunner } = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
-const { getIO: getIoInstance } = require("../socket/socketController");
-const SocketService = require("../socket/socketService");
-const MatchStore = require("../socket/matchStore");
-const matchStore = require("../socket/matchStore");
+const { getIO: getIoInstance } = require("../controller/socketController");
+const SocketService = require("../service/socketService");
+const MatchStore = require("../store/matchStore");
 const { gameWinx } = require("../config/index");
 require("dotenv").config();
+
 const settingsController = require("../controller/settingsController")
+const matchJobService = require("../service/matchService");
 
 // Winner Calculator Helper
 function calculateWinner(rows, clanData) {
@@ -72,15 +73,9 @@ async function createNewMatch(matchName, clanNames) {
     // 1. match uid
     const matchUuid1 = uuidv4();
     const matchName1 = matchName;
+
     // 2. insert match to db
-    const sql = `
-      INSERT INTO matches (match_uuid, match_name, status, created_at)
-      VALUES (?, ?, 'pending', NOW())
-    `;
-    await queryRunner(sql, [matchUuid1, matchName1]);
-    console.log(
-      `🎮 Created match: ${matchName1}:${matchUuid1} with clans of TIGER TIE DRAGON`
-    );
+    // await matchJobService(matchUuid1, matchName1);
 
     // 3.Initialize in-memory store
     MatchStore.initMatch(matchUuid1, matchName1, clanNames);
@@ -94,18 +89,12 @@ async function createNewMatch(matchName, clanNames) {
 }
 
 async function startMatch(matchUuid) {
-
   try {
-    // 1. Update DB
-    const sql = `
-      UPDATE matches
-      SET status = 'ongoing', start_time = NOW()
-      WHERE match_uuid = ?
-    `;
-    await queryRunner(sql, [matchUuid]);
-    console.log(`✅ Match started: ${matchUuid}`);
+    // 1.store in db
+    // await matchJobService.updateMatchStatus(matchUuid)
+    
     // 2. Update in-memory store
-    matchStore.matches[matchUuid].matchStatus = "ongoing";
+    MatchStore.matches[matchUuid].matchStatus = "ongoing";
     console.log(` MatchStore: Match ${matchUuid} status set to ongoing`); 
   } catch (error) {
     console.log("error on start match", error.message);
@@ -117,49 +106,63 @@ async function startMatch(matchUuid) {
 async function endMatch(gameName, matchUuid, matchName) {
   try {
     console.log(`🏁 Ending match: ${matchUuid} (${matchName})`);
-
-    const fixedWinerEnableCheckData = await settingsController.isFixedWinner(gameName);//get fixed winner data for game
-
-    if(fixedWinerEnableCheckData.isEnabled){//
+    // const fixedWinerEnableCheckData = await settingsController.isFixedWinner(gameName);//get fixed winner data for game
+    //end db match and store , select winner & emit history  if fixed enabnled for this match
+    
+    /*if(fixedWinerEnableCheckData.isEnabled){
       console.log("fixed winner enabled here the game name and data ",fixedWinerEnableCheckData )
-      const  result = await settingsController.updateCompleMatchForFixedWinner(
-                                                          gameName, 
-                                                          fixedWinerEnableCheckData.completedMatch,
-                                                          fixedWinerEnableCheckData.totalMatch
+      const  result = await settingsController.
+                        updateCompleMatchForFixedWinner(
+                                                        gameName, 
+                                                        fixedWinerEnableCheckData.completedMatch,
+                                                        fixedWinerEnableCheckData.totalMatch
+                                                      );//update completed match count for fixed winner and if the completed match matches the total match the fixed winner disabled 
 
-                                                        );//update completed match count for fixed winner and if the completed match matches the total match the fixed winner disabled 
+      let winnerClan = fixedWinerEnableCheckData.winnerClan[Number(fixedWinerEnableCheckData.completedMatch)];
+      console.log(`🎯 fixed winner selected: ${winnerClan}`);
+      
+      //update db status
+      // await matchJobService.updateMatchStatus(matchUuid, "completed",{winnerClan} )
 
-      console.log(`🎯 fixed winner selected: ${fixedWinerEnableCheckData.winnerClan}`);
-
-      await queryRunner(
-        `UPDATE matches
-         SET status='completed', end_time=NOW(), winner_clan=?
-         WHERE match_uuid=?`,
-        [fixedWinerEnableCheckData.winnerClan, matchUuid]
-      );
-
+      //update store status
+      MatchStore.matches[matchUuid].winnerClan  = winnerClan;
+      MatchStore.matches[matchUuid].matchStatus = "completed"
+      
       const io = getIoInstance();
       await SocketService.emitLast10History(io, matchName);
-      return fixedWinerEnableCheckData.winnerClan;
+      return winnerClan;
+    }*/
+    const fixedWinnerResult = MatchStore.getFixedWinner(gameName, matchUuid);
+    console.log("fixed winner check result ",fixedWinnerResult);
+    if(fixedWinnerResult.isFixedWinnerEnabled) {
+      let winnerClan = fixedWinnerResult.winnerClan      
+      console.log("fixed winner setted for ", gameName, "and the winner clan is ",winnerClan);
+      
+      MatchStore.matches[matchUuid].winnerClan = winnerClan;
+      MatchStore.matches[matchUuid].matchStatus = "completed"
+      const io = getIoInstance();
+      await SocketService.emitLast10History(io, matchName);     
+      return winnerClan;
     }
+
     const matchConfig = gameWinx[matchName];
     if (!matchConfig) {
       console.log("❌ Match config not found");
       return null;
     }
 
-    const clanData = matchConfig.clanData;
 
-    // 1️⃣ Fetch total bets per clan
-    const rows = await queryRunner(
-      `SELECT clan_name, SUM(bet_amount) AS total
-       FROM bets
-       WHERE match_uuid = ?
-       GROUP BY clan_name`,
-      [matchUuid]
-    );
-
-    // 0️⃣ If no bets → random winner
+    const clanData = matchConfig.clanData;  
+    // const rows = await matchJobService.getMatchBets(matchUuid);// Fetch total bets per clan
+    
+    const storeRows =  await MatchStore.getMatchTotals(matchUuid);
+    console.log(storeRows);
+    const rows = Object.entries(storeRows.real).map(([clan_name, total]) => ({
+                   clan_name,
+                   total
+                 }));
+    console.log(rows);
+    // If no bets → random winner  ,end  db match and store, emit history and select winner
     if (!rows.length) {
       const clans = clanData.clanNames;
       const winnerClan =
@@ -167,40 +170,36 @@ async function endMatch(gameName, matchUuid, matchName) {
 
       console.log(`🎯 Random winner selected: ${winnerClan}`);
 
-      await queryRunner(
-        `UPDATE matches
-         SET status='completed', end_time=NOW(), winner_clan=?
-         WHERE match_uuid=?`,
-        [winnerClan, matchUuid]
-      );
+      //update match status and mark winner 
+      // await matchJobService.updateMatchStatus(matchUuid, "completed",{winnerClan})
+
+      //update store status
+      MatchStore.matches[matchUuid].winnerClan = winnerClan;
+      MatchStore.matches[matchUuid].matchStatus = "completed"
 
       const io = getIoInstance();
       await SocketService.emitLast10History(io, matchName);
       return winnerClan;
     }
 
-    // 2️⃣ Use helper to compute winner
-    const winnerClan = calculateWinner(rows, clanData);
-    
-
+    // Use helper to compute winner bsed on bets
+    const winnerClan = calculateWinner(rows, clanData);  
     console.log(`🏆 Final Winner: ${winnerClan}`);
-
-    // 3️⃣ Update DB
-    await queryRunner(
-      `UPDATE matches
-       SET status='completed', end_time=NOW(), winner_clan=?
-       WHERE match_uuid=?`,
-      [winnerClan, matchUuid]
-    );
+    
+    //update db match status
+    // await matchJobService.updateMatchStatus(matchUuid, "completed", {winnerClan})
+    
+    //update store status
+    MatchStore.matches[matchUuid].winnerClan = winnerClan;
+    MatchStore.matches[matchUuid].matchStatus = "completed"
 
     const io = getIoInstance();
     await SocketService.emitLast10History(io, matchName);
-
     return winnerClan;
 
   } catch (err) {
     console.error("❌ Error in endMatch:", err.message);
-    return null;
+    // return null;
   }
 }
 
@@ -284,22 +283,21 @@ async function runSingleMatchCycle(gameName) {
             ? "BET_OPEN"
             : "BET_CLOSED",
         betRemainingTime: betRemaining > 0 ? betRemaining : 0,
-
         totalBet:
           (remaining === FULL_MATCH_TIME || remaining === 59)
             ? {
-                // real: currentTotals.real,
+                real: currentTotals.real,
                 dummy: currentTotals.dummy
                 
               }
             : {
-                // real: currentTotals.real,
+                real: currentTotals.real,
                 dummy: currentTotals.dummy                                  
               },
 
         usersCount,
       });
-
+      // console.log(remaining)
       // ----------------------------------
       // 🟡 BET COUNTDOWN
       // ----------------------------------
@@ -341,12 +339,16 @@ async function runSingleMatchCycle(gameName) {
 
         // Stop dummy data
         MatchStore.stopDummySimulationForMatch(matchUuid1);
-
+        MatchStore.addHistroy(gameName, matchUuid1, winnerClan)
         // Cleanup memory for match
         MatchStore.removeMatch(matchUuid1);
+        delete MatchStore.fixedWinners[matchUuid1]; // 
 
         return resolve(winnerClan);
       }
+      // if(remaining === 3 ){
+      //   await  matchJobService.sendMatchDataToExternalService(matchUuid1);
+      // }
 
       remaining--;
     }, TICK_INTERVAL);
@@ -354,16 +356,26 @@ async function runSingleMatchCycle(gameName) {
 }
 
 async function startMatchScheduler(gameName) {
-  console.log("🕒 Match scheduler started...");
+  console.log(`🕒 Match scheduler started for ${gameName}`);
 
-  const GAP_BETWEEN_MATCHES = Number(process.env.MATCH_GAP || 3); // seconds
+  const GAP_BETWEEN_MATCHES = Number(process.env.MATCH_GAP || 3);
+  let running = false;
 
   async function loop() {
-    console.log("🚀 Starting new match cycle...");
-    await   runSingleMatchCycle(gameName );  // wait fully
-    console.log("🏁 Match finished. Waiting for next cycle...");
-    await new Promise(res => setTimeout(res, GAP_BETWEEN_MATCHES * 1000));
-    loop(); // repeat
+    if (running) return; // safety protection
+    running = true;
+
+    try {
+      console.log("🚀 Starting new match cycle...");
+      await runSingleMatchCycle(gameName); // wait fully
+      console.log(`🏁 Match finished. Waiting ${GAP_BETWEEN_MATCHES}s...`);
+      await new Promise(res => setTimeout(res, GAP_BETWEEN_MATCHES * 1000));
+    } catch (err) {
+      console.error("❌ Match cycle error:", err);
+    } finally {
+      running = false;
+      setTimeout(loop, 0); 
+    }
   }
 
   loop();
@@ -371,8 +383,8 @@ async function startMatchScheduler(gameName) {
 
 async function parentAllGameScheduler() {
   console.log("🔥 Starting ALL game schedulers...");
-  // const gameNames = Object.keys(gameWinx);
-  const gameNames = ["TigerDragon"]
+  const gameNames = Object.keys(gameWinx);
+  // const gameNames = ["JhandiMunda"]
   gameNames.forEach((gameName) => {
     console.log(`🎮 Starting scheduler for: ${gameName}`);
     startMatchScheduler(gameName);

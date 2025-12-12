@@ -12,6 +12,13 @@
   background-color: #242424;
 }
 
+@theme{
+  
+  --color-primary: #f90606;
+  --color-background-light: #f8f5f5;
+  --color-background-dark: #230f0f;
+}
+
 body {
   margin: 0;
   padding: 0;
